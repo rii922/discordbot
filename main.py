@@ -1,7 +1,6 @@
 import discord
 import os
 from keep_alive import keep_alive
-from sympy import *
 
 client = discord.Client(intents=discord.Intents.default())
 
@@ -11,9 +10,10 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-	if (message.content[:4] == "math"):
-		sympy.preview(message.content[4:], viewer="file", filename="math.png")
-		await message.channel.send(file=discord.File("math.png"))
+	if message.author.bot:
+		return
+	if message.content == "greet":
+		message.channel.send("おはよう")
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
