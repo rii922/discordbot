@@ -2,7 +2,7 @@ import discord
 import os
 from keep_alive import keep_alive
 
-client = discord.Client(intents=discord.Intents.default())
+client = discord.Client(intents=discord.Intents.all())
 
 @client.event
 async def on_ready():
@@ -10,8 +10,9 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    emoji ="👍"
-    await message.add_reaction(emoji)
+    if message.content.startswith("greet"):
+        await message.channel.send("おはよう")
+
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 keep_alive()
