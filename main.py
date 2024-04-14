@@ -6,12 +6,12 @@ client = discord.Client(intents=discord.Intents.default())
 
 @client.event
 async def on_ready():
-	print('ログインしました')
+    print('ログインしました')
 
 @client.event
 async def on_message(message):
-	if message.content == "greet":
-		await message.channel.send("おはよう")
+    if message.content == "greet":
+        await message.channel.send("おはよう")
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
