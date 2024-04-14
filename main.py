@@ -10,7 +10,7 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    if message.content == "greet":
+    if message.content.startswith("greet"):
         await message.channel.send("おはよう")
 
 TOKEN = os.getenv("DISCORD_TOKEN")
