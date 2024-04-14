@@ -1,7 +1,7 @@
 import discord
 import os
 from keep_alive import keep_alive
-import sympy
+from sympy import *
 
 client = discord.Client(intents=discord.Intents.default())
 
