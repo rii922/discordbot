@@ -14,6 +14,8 @@ async def on_ready():
 async def on_message(message):
     if message.content.startswith("greet"):
         await message.channel.send("おはよう")
+    if message.content == "exit":
+        exit()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
