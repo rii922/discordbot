@@ -23,13 +23,13 @@ async def on_message(message):
         await message.channel.send(url)
     # チンイツ待ちクイズ
     elif message.content == "tinitu":
-        tinitu_correct = False
         hand, ans = tinitu.generate_quiz()
-        hand_str = ""
+        hand_list = []
         for i in range(9):
-            hand_str += str(i+1)*hand[i]
-        hand_str_shuffled = hand_str[:]
-        random.shuffle(hand_str_shuffled)
+            hand_list += [i+1 for _ in range(hand[i])]
+        hand_str = "".join(hand_list)
+        random.shuffle(hand_list)
+        hand_str_shuffled = "".join(hand_list)
         await message.channel.send("このチンイツ、何待ち？\n" + hand_str_shuffled)
         def check(ans_message):
             if ans_message.channel != message.channel:
