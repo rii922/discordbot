@@ -12,10 +12,12 @@ client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
-    print('ログインしました')
+    print("rii botが来たよ～")
 
 @client.event
 async def on_message(message):
+    if message.author.bot:
+        return
     # 数式を画像化
     if message.content.startswith("math "):
         tex = urllib.parse.quote(message.content[5:])
@@ -53,7 +55,7 @@ async def on_message(message):
                 ans_message = await client.wait_for("message", check=check, timeout=30)
                 await send_correct_message(ans_message)
             except asyncio.TimeoutError:
-                await message.channel.send("まだ分からない？仕方がないなあ...この待ちは**" + str(len(ans)) + "**種あるよ～")
+                await message.channel.send("まだ分からない？しょうがないなあ...この待ちは**" + str(len(ans)) + "**種あるよ～")
                 try:
                     ans_message = await client.wait_for("message", check=check, timeout=30)
                     await send_correct_message(ans_message)
