@@ -21,16 +21,16 @@ async def on_message(message):
         tex = urllib.parse.quote(message.content[5:])
         url = "https://api.excelapi.org/math/tex2image?math=" + tex
         await message.channel.send(url)
-    # チンイツ待ちクイズ
+    # 清一色何待ちクイズ
     elif message.content == "tinitu":
         hand, ans = tinitu.generate_quiz()
         hand_list = []
         for i in range(9):
-            hand_list += [str(i+1) for _ in range(hand[i])]
+            hand_list += ["**" + str(i+1) + "**" for _ in range(hand[i])]
         hand_str = " ".join(hand_list)
         random.shuffle(hand_list)
         hand_str_shuffled = " ".join(hand_list)
-        await message.channel.send("このチンイツ、何待ち？\n" + hand_str_shuffled)
+        await message.channel.send("# 清一色何待ちクイズ\n待ちこの清一色、何待ち？\n" + hand_str_shuffled)
         def check(ans_message):
             if ans_message.channel != message.channel:
                 return False
@@ -50,7 +50,7 @@ async def on_message(message):
                 ans_message = await client.wait_for("message", check=check, timeout=30)
                 await send_correct_message(ans_message)
             except asyncio.TimeoutError:
-                ans_list = [str(wait+1) for wait in ans]
+                ans_list = ["**" + str(wait+1) + "**" for wait in ans]
                 ans_list.sort()
                 await message.channel.send("正解は" + ", ".join(ans_list) + "待ちでした！難しかったかな？")
     # botを終了
