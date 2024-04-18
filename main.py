@@ -32,7 +32,7 @@ async def on_message(message):
         hand_str_shuffled = " ".join(hand_list)
         ans_list = ["**" + str(wait+1) + "**" for wait in ans]
         ans_list.sort()
-        await message.channel.send("__**清一色何待ちクイズ**__\n待ちこの清一色、何待ち？\n" + hand_str_shuffled)
+        await message.channel.send("__**清一色何待ちクイズ**__\nこの清一色、何待ち？\n" + hand_str_shuffled)
         def check(ans_message):
             if ans_message.channel != message.channel:
                 return False
