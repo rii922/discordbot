@@ -42,8 +42,8 @@ async def on_message(message):
                     user_ans.add(i)
             return user_ans == ans
         async def send_correct_message(ans_message):
-            await message.channel.send(ans_message.author.mention + "正解！(" + ", ".join(ans_list) + "待ち)")
-            await message.add_reaction("👍")
+            await ans_message.channel.send(ans_message.author.mention + "正解！(" + ", ".join(ans_list) + "待ち)")
+            await ans_message.add_reaction("👍")
         try:
             ans_message = await client.wait_for("message", check=check, timeout=30)
             await send_correct_message(ans_message)
