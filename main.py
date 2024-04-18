@@ -30,7 +30,9 @@ async def on_message(message):
         hand_str = " ".join(hand_list)
         random.shuffle(hand_list)
         hand_str_shuffled = " ".join(hand_list)
-        await message.channel.send("**清一色何待ちクイズ**\n待ちこの清一色、何待ち？\n" + hand_str_shuffled)
+        ans_list = ["**" + str(wait+1) + "**" for wait in ans]
+        ans_list.sort()
+        await message.channel.send("__**清一色何待ちクイズ**__\n待ちこの清一色、何待ち？\n" + hand_str_shuffled)
         def check(ans_message):
             if ans_message.channel != message.channel:
                 return False
@@ -40,19 +42,23 @@ async def on_message(message):
                     user_ans.add(i)
             return user_ans == ans
         async def send_correct_message(ans_message):
-            await message.channel.send(ans_message.author.mention + "正解！")
+            await message.channel.send(ans_message.author.mention + "正解！(" + ", ".join(ans_list) + "待ち)")
+            await message.add_reaction("👍")
         try:
             ans_message = await client.wait_for("message", check=check, timeout=30)
             await send_correct_message(ans_message)
         except asyncio.TimeoutError:
-            await message.channel.send("分からない？...じゃあ理牌してあげるよ！\n" + hand_str)
+            await message.channel.send("分からない？...じゃあ理牌してあげる～\n" + hand_str)
             try:
                 ans_message = await client.wait_for("message", check=check, timeout=30)
                 await send_correct_message(ans_message)
             except asyncio.TimeoutError:
-                ans_list = ["**" + str(wait+1) + "**" for wait in ans]
-                ans_list.sort()
-                await message.channel.send("正解は" + ", ".join(ans_list) + "待ちでした！難しかったかな？")
+                await message.channel.send("まだ分からない？仕方がないなあ...この待ちは**" + str(len(ans)) + "**種あるよ～")
+                try:
+                    ans_message = await client.wait_for("message", check=check, timeout=30)
+                    await send_correct_message(ans_message)
+                except asyncio.TimeoutError:
+                    await message.channel.send("正解は" + ", ".join(ans_list) + "待ちでした！難しかったかな？")
     # botを終了
     elif message.content == "exit":
         await message.channel.send("ばいばーい")
