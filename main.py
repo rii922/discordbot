@@ -100,10 +100,10 @@ async def on_message(message):
                     else:
                         life -= 1
             except asyncio.TimeoutError:
-                await message.channel.send("3分間無言だったので終了するよ\n正解は" + word + "でした！")
+                await message.channel.send("3分間無言だったので終了するよ\n正解は**" + word + "**でした！")
                 break
         if life == 0:
-            await message.channel.send("残念...\n正解は" + word + "でした！")
+            await message.channel.send("残念...\n正解は**" + word + "**でした！")
     # botを終了
     elif message.content == "exit":
         await message.channel.send("ばいばーい")
