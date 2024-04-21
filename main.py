@@ -4,6 +4,7 @@ from keep_alive import keep_alive
 import urllib.parse
 import random
 import asyncio
+import requests
 import tinitu
 import hangman
 
@@ -57,7 +58,7 @@ async def on_message(message):
                 ans_message = await client.wait_for("message", check=check, timeout=30)
                 await send_correct_message(ans_message)
             except asyncio.TimeoutError:
-                await message.channel.send("まだ分からない？仕方がないなあ...この待ちは**" + str(len(ans)) + "**種あるよ～")
+                await message.channel.send("まだ分からない？しょうがないなあ...この待ちは**" + str(len(ans)) + "**種あるよ～")
                 try:
                     ans_message = await client.wait_for("message", check=check, timeout=30)
                     await send_correct_message(ans_message)
@@ -69,7 +70,16 @@ async def on_message(message):
         life = len(word)
         opened = [False for _ in range(len(word))]
         chars = []
-        await message.channel.send("__**hangman**__\nアルファベット1文字または予想する単語を答えよう！")
+        data = requests.get("https://api.dictionaryapi.dev/api/v2/entries/en/" + word).json()[0]
+        description = "**" + word + "** " + data["phonetic"]
+        for meaning in data["meanings"]:
+            description += "\n"
+            description += "__" + meaning["partOfSpeech"] + "__"
+            for definition in meaning["definitions"]:
+                description += "\n- " + definition["definition"]
+        if len(data["sourceUrls"]) > 0:
+            description += "\nsource: " + " ".join(data["sourceUrls"])
+        await message.channel.send("__**hangman**__\n英単語を当てよう！\n答え方:\n- アルファベット1文字を開ける\n- 単語を丸ごと答える")
         def check(ans_message):
             if ans_message.channel != message.channel:
                 return False
@@ -78,7 +88,7 @@ async def on_message(message):
                     return False
             return True
         while life > 0:
-            await message.channel.send("**" + " ".join([(word[i] if opened[i] else "\\_") for i in range(len(word))]) + "**\n残機: " + str(life) + "\n使った文字: " + " ".join(chars))
+            await message.channel.send("現在の状態: **" + " ".join([(word[i] if opened[i] else "\\_") for i in range(len(word))]) + "**\n残機: " + str(life) + "\n使った文字: " + " ".join(chars))
             try:
                 ans_message = await client.wait_for("message", check=check, timeout=180)
                 if len(ans_message.content) == 1:
@@ -104,6 +114,7 @@ async def on_message(message):
                 break
         if life == 0:
             await message.channel.send("残念...\n正解は**" + word + "**でした！")
+        await message.channel.send(description)
     # botを終了
     elif message.content == "exit":
         await message.channel.send("ばいばーい")
