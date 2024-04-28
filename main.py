@@ -7,6 +7,7 @@ import asyncio
 import requests
 import tinitu
 import hangman
+import aki
 
 intents = discord.Intents.default()
 intents.message_content = True
