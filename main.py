@@ -115,6 +115,9 @@ async def on_message(message):
         if life == 0:
             await message.channel.send("残念...\n正解は**" + word + "**でした！")
         await message.channel.send(description)
+    # Akinator
+    elif message.content == "akinator":
+        await aki.play(client, message)
     # botを終了
     elif message.content == "exit":
         await message.channel.send("ばいばーい")
