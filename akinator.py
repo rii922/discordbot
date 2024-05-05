@@ -33,13 +33,15 @@ class Akinator:
         match_question = re.search(r"<p class=\"question-text\" id=\"question-label\">\s*(.+)\s*</p>", response.text)
         if match_question is None:
             raise Exception("failed to get question")
-        match_step = re.search(r"'step', '(.+)'", response.text)
-        match_progression = re.search(r"'progression', '(.+)'", response.text)
-        if match_step is None or match_progression is None:
-            raise Exception("technical error has occured")
         self.question = match_question.group(1)
-        self.step = int(match_step.group(1))
-        self.progression = float(match_progression.group(1))
+        # match_step = re.search(r"'step', '(.+)'", response.text)
+        # match_progression = re.search(r"'progression', '(.+)'", response.text)
+        # if match_step is None or match_progression is None:
+        #     raise Exception("technical error has occured")
+        # self.step = int(match_step.group(1))
+        # self.progression = float(match_progression.group(1))
+        self.step = 0
+        self.progression = 0.0
         self.guessed = False
     
     def answer(self, ans):
@@ -105,6 +107,25 @@ class ChoicesView(discord.ui.View):
         await interaction.response.send_message("たぶん違う そうでもない")
         self.stop()
 
+def float_to_hex(x):
+    return min(max(round(x*256), 0), 255)
+
+def float_to_color(x):
+    x = min(max(x, 0.0), 1.0)
+    if x < 1/6:
+        r, g, b = 1.0, x*6, 0.0
+    elif x < 2/6:
+        r, g, b = 1.0-(x-1/6)*6, 1.0, 0.0
+    elif x < 3/6:
+        r, g, b = 0.0, 1.0, (x-2/6)*6
+    elif x < 4/6:
+        r, g, b = 0.0, 1.0-(x-3/6)*6, 1.0
+    elif x < 5/6:
+        r, g, b = (x-4/6)*6, 0.0, 1.0
+    else:
+        r, g, b = 1.0, 0.0, 1.0-(x-5/6)*6
+    return float_to_hex(r)*0x10000 + float_to_hex(g)*0x100 + float_to_hex(b)
+
 async def play(client, message):
     aki = Akinator()
     try:
@@ -114,7 +135,7 @@ async def play(client, message):
         return
     await message.channel.send("__**Akinator**__\nやあ、私はアキネイターです\n有名な人物やキャラクターを思い浮かべて。魔人が誰でも当ててみせよう。魔人は何でもお見通しさ")
     while not aki.guessed:
-        embed = discord.Embed(title="質問"+str(aki.step+1), color=0x0000ff)
+        embed = discord.Embed(title="質問"+str(aki.step+1), color=float_to_color(aki.progression/100))
         embed.add_field(name=aki.question, value="下のモーダルから答えてね")
         view = ChoicesView()
         await message.channel.send(embed=embed, view=view)
@@ -124,7 +145,7 @@ async def play(client, message):
         except Exception as e:
             await message.channel.send(e)
             return
-    guess_embed = discord.Embed(title="予想したのは...", color=0x00ff00)
+    guess_embed = discord.Embed(title="予想したのは...", color=float_to_color(aki.progression/100))
     guess_embed.add_field(name=aki.guess_name, value=aki.guess_description)
     guess_embed.set_image(url=aki.guess_image)
     await message.channel.send(embed=guess_embed)
