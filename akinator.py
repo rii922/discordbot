@@ -2,11 +2,24 @@ import discord
 import requests
 import re
 
+class SessionFailure(Exception):
+    pass
+
+class QuestionFailure(Exception):
+    pass
+
+class NoMoreQuestions(Exception):
+    pass
+
+class InvalidCompletion(Exception):
+    pass
+
 class Akinator:
     def __init__(self):
         self.question = None
         self.step = None
         self.progression = None
+        self.step_last_proposition = None
         self.guessed = None
         self.guess_name = None
         self.guess_description = None
@@ -16,6 +29,18 @@ class Akinator:
         self.child_mode = None
         self.session = None
         self.signature = None
+    
+    def _update(self, response):
+        if "id_base_proposition" in response:
+            self.step_last_proposition = self.step
+            self.guessed = True
+            self.guess_name = response["name_proposition"]
+            self.guess_description = response["description_proposition"]
+            self.guess_image = response["photo"]
+        else:
+            self.question = response["question"]
+            self.step = int(response["step"])
+            self.progression = float(response["progression"])
     
     def start_game(self, language=None, child_mode=False):
         self.language = language
@@ -27,12 +52,12 @@ class Akinator:
         match_session = re.search(r"session:\s*'(.+)'", response.text)
         match_signature = re.search(r"signature:\s*'(.+)'", response.text)
         if match_session is None or match_signature is None:
-            raise Exception("failed to get session or signature")
+            raise SessionFailure("failed to get session or signature")
         self.session = match_session.group(1)
         self.signature = match_signature.group(1)
         match_question = re.search(r"<p class=\"question-text\" id=\"question-label\">\s*(.+)\s*</p>", response.text)
         if match_question is None:
-            raise Exception("failed to get question")
+            raise QuestionFailure("failed to get question")
         self.question = match_question.group(1)
         # match_step = re.search(r"'step', '(.+)'", response.text)
         # match_progression = re.search(r"'progression', '(.+)'", response.text)
@@ -46,19 +71,20 @@ class Akinator:
     
     def answer(self, ans):
         url = f"{self.uri}/answer"
-        json = {"sid": 1, "cm": str(self.child_mode).lower(), "answer": ans, "step": self.step, "progression": self.progression, "session": self.session, "signature": self.signature}
+        json = {"sid": 1, "cm": str(self.child_mode).lower(), "answer": ans, "step": self.step, "progression": self.progression, "step_last_proposition": self.step_last_proposition or "", "session": self.session, "signature": self.signature}
         response = requests.post(url, json=json).json()
+        if response["completion"] == "SOUNDLIKE":
+            raise NoMoreQuestions("no more questions")
         if response["completion"] != "OK":
-            raise Exception("technical error has occured")
-        if "id_base_proposition" in response:
-            self.guessed = True
-            self.guess_name = response["name_proposition"]
-            self.guess_description = response["description_proposition"]
-            self.guess_image = response["photo"]
-        else:
-            self.question = response["question"]
-            self.step = int(response["step"])
-            self.progression = float(response["progression"])
+            raise InvalidCompletion("technical error: returned non-OK completion with " + response["completion"])
+        self._update(response)
+    
+    def exclude(self):
+        self.guessed = False
+        url = f"{self.uri}/exclude"
+        json = {"sid": 1, "cm": str(self.child_mode).lower(), "step": self.step, "progression": self.progression, "session": self.session, "signature": self.signature}
+        response = requests.post(url, json=json).json()
+        self._update(response)
     
     # def back(self):
     #     if self.step == 0:
@@ -107,6 +133,23 @@ class ChoicesView(discord.ui.View):
         await interaction.response.send_message("たぶん違う そうでもない")
         self.stop()
 
+class ConfirmationView(discord.ui.View):
+    def __init__(self, timeout=180):
+        self.value = None
+        super().__init__(timeout=timeout)
+    
+    @discord.ui.button(label="はい", style=discord.ButtonStyle.green)
+    async def button_y(self, interaction, button: discord.Button):
+        self.value = 0
+        await interaction.response.send_message("はい")
+        self.stop()
+    
+    @discord.ui.button(label="いいえ", style=discord.ButtonStyle.red)
+    async def button_n(self, interaction, button: discord.Button):
+        self.value = 1
+        await interaction.response.send_message("いいえ")
+        self.stop()
+
 def float_to_hex(x):
     return min(max(round(x*256), 0), 255)
 
@@ -130,22 +173,35 @@ async def play(client, message):
     aki = Akinator()
     try:
         aki.start_game("jp")
+        await message.channel.send("__**Akinator**__\nやあ、私はアキネイターです\n有名な人物やキャラクターを思い浮かべて。魔人が誰でも当ててみせよう。魔人は何でもお見通しさ")
+        while True:
+            while not aki.guessed:
+                embed = discord.Embed(title="質問"+str(aki.step+1), color=float_to_color(aki.progression/100))
+                embed.add_field(name=aki.question, value="下のモーダルから答えてね")
+                choices_view = ChoicesView()
+                await message.channel.send(embed=embed, view=choices_view)
+                await choices_view.wait()
+                if choices_view.value is None:
+                    await message.channel.send("3分間操作がなかったので終了するよ")
+                    return
+                aki.answer(choices_view.value)
+            guess_embed = discord.Embed(title="思い浮かべているのは", color=float_to_color(aki.progression/100))
+            guess_embed.add_field(name=aki.guess_name, value=aki.guess_description)
+            guess_embed.set_image(url=aki.guess_image)
+            confirmation_view = ConfirmationView()
+            await message.channel.send(embed=guess_embed, view=confirmation_view)
+            await confirmation_view.wait()
+            if confirmation_view.value == 0:
+                await message.channel.send("よぉし！また正解！！魔人は何でもお見通しだ！")
+                return
+            elif confirmation_view.value == 1:
+                aki.exclude()
+            else:
+                await message.channel.send("3分間操作がなかったので終了するよ")
+                return
+    except NoMoreQuestions:
+        await message.channel.send("魔人はそのキャラクターを知らないかも...")
     except Exception as e:
         await message.channel.send(e)
+        await message.channel.send("エラーが発生しました...やり直してね")
         return
-    await message.channel.send("__**Akinator**__\nやあ、私はアキネイターです\n有名な人物やキャラクターを思い浮かべて。魔人が誰でも当ててみせよう。魔人は何でもお見通しさ")
-    while not aki.guessed:
-        embed = discord.Embed(title="質問"+str(aki.step+1), color=float_to_color(aki.progression/100))
-        embed.add_field(name=aki.question, value="下のモーダルから答えてね")
-        view = ChoicesView()
-        await message.channel.send(embed=embed, view=view)
-        await view.wait()
-        try:
-            aki.answer(view.value)
-        except Exception as e:
-            await message.channel.send(e)
-            return
-    guess_embed = discord.Embed(title="予想したのは...", color=float_to_color(aki.progression/100))
-    guess_embed.add_field(name=aki.guess_name, value=aki.guess_description)
-    guess_embed.set_image(url=aki.guess_image)
-    await message.channel.send(embed=guess_embed)
