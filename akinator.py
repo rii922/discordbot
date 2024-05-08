@@ -14,6 +14,9 @@ class NoMoreQuestions(Exception):
 class InvalidCompletion(Exception):
     pass
 
+class CantGoAnyFurther(Exception):
+    pass
+
 class Akinator:
     def __init__(self):
         self.question = None
@@ -25,6 +28,7 @@ class Akinator:
         self.guess_description = None
         self.guess_image = None
         self.uri = None
+        self.akitude = None
         self.language = None
         self.child_mode = None
         self.session = None
@@ -41,23 +45,25 @@ class Akinator:
             self.question = response["question"]
             self.step = int(response["step"])
             self.progression = float(response["progression"])
+            self.akitude = response["akitude"]
     
     def start_game(self, language=None, child_mode=False):
         self.language = language
-        self.uri = f"https://{self.language}.akinator.com"
         self.child_mode = child_mode
+        self.uri = f"https://{self.language}.akinator.com"
+        self.akitude = "defi.png"
         url = f"{self.uri}/game"
         json = {"sid": 1, "cm": str(self.child_mode).lower()}
         response = requests.post(url, json=json)
         match_session = re.search(r"session:\s*'(.+)'", response.text)
         match_signature = re.search(r"signature:\s*'(.+)'", response.text)
         if match_session is None or match_signature is None:
-            raise SessionFailure("failed to get session or signature")
+            raise SessionFailure("connection error: failed to get session or signature")
         self.session = match_session.group(1)
         self.signature = match_signature.group(1)
         match_question = re.search(r"<p class=\"question-text\" id=\"question-label\">\s*(.+)\s*</p>", response.text)
         if match_question is None:
-            raise QuestionFailure("failed to get question")
+            raise QuestionFailure("connection error: failed to get question")
         self.question = match_question.group(1)
         # match_step = re.search(r"'step', '(.+)'", response.text)
         # match_progression = re.search(r"'progression', '(.+)'", response.text)
@@ -74,9 +80,9 @@ class Akinator:
         json = {"sid": 1, "cm": str(self.child_mode).lower(), "answer": ans, "step": self.step, "progression": self.progression, "step_last_proposition": self.step_last_proposition or "", "session": self.session, "signature": self.signature}
         response = requests.post(url, json=json).json()
         if response["completion"] == "SOUNDLIKE":
-            raise NoMoreQuestions("no more questions")
+            raise NoMoreQuestions("maximum question error: no more questions to ask")
         if response["completion"] != "OK":
-            raise InvalidCompletion("technical error: returned non-OK completion with " + response["completion"])
+            raise InvalidCompletion(f"technical error: returned non-OK completion '{response['completion']}'")
         self._update(response)
     
     def exclude(self):
@@ -86,17 +92,13 @@ class Akinator:
         response = requests.post(url, json=json).json()
         self._update(response)
     
-    # def back(self):
-    #     if self.step == 0:
-    #         raise Exception("cannot go back any further")
-    #     url = f"{self.uri}/cancel_answer"
-    #     json = {"sid": 1, "cm": str(self.child_mode).lower(), "step": self.step, "progression": self.progression, "session": self.session, "signature": self.signature}
-    #     response = requests.post(url, json=json).json()
-    #     if response["completion"] != "OK":
-    #         raise Exception("technical error has occured")
-    #     self.question = response["question"]
-    #     self.step = int(response["step"])
-    #     self.progression = float(response["progression"])
+    def back(self):
+        if self.step == 0:
+            raise CantGoAnyFurther("error: unable to go back at the first question")
+        url = f"{self.uri}/cancel_answer"
+        json = {"sid": 1, "cm": str(self.child_mode).lower(), "step": self.step, "progression": self.progression, "session": self.session, "signature": self.signature}
+        response = requests.post(url, json=json).json()
+        self._update(response)
 
 class ChoicesView(discord.ui.View):
     def __init__(self, timeout=180):
@@ -131,6 +133,12 @@ class ChoicesView(discord.ui.View):
     async def button_pn(self, interaction, button: discord.Button):
         self.value = 4
         await interaction.response.send_message("たぶん違う そうでもない")
+        self.stop()
+    
+    @discord.ui.button(label="修正する", style=discord.ButtonStyle.red)
+    async def button_back(self, interaction, button: discord.Button):
+        self.value = -1
+        await interaction.response.send_message("修正する")
         self.stop()
 
 class ConfirmationView(discord.ui.View):
@@ -171,6 +179,7 @@ def float_to_color(x):
 
 async def play(client, message):
     aki = Akinator()
+    miss_count = 0
     try:
         aki.start_game("jp")
         await message.channel.send("__**Akinator**__\nやあ、私はアキネイターです\n有名な人物やキャラクターを思い浮かべて。魔人が誰でも当ててみせよう。魔人は何でもお見通しさ")
@@ -178,13 +187,20 @@ async def play(client, message):
             while not aki.guessed:
                 embed = discord.Embed(title="質問"+str(aki.step+1), color=float_to_color(aki.progression/100))
                 embed.add_field(name=aki.question, value="下のモーダルから答えてね")
+                embed.set_thumbnail(url=f"{aki.uri}/assets/img/akitudes_670x1096/{aki.akitude}")
                 choices_view = ChoicesView()
                 await message.channel.send(embed=embed, view=choices_view)
                 await choices_view.wait()
                 if choices_view.value is None:
                     await message.channel.send("3分間操作がなかったので終了するよ")
                     return
-                aki.answer(choices_view.value)
+                elif choices_view.value == -1:
+                    if aki.step >= 1:
+                        aki.back()
+                    else:
+                        await message.channel.send("これ以上前の問題には戻れないよ！")
+                else:
+                    aki.answer(choices_view.value)
             guess_embed = discord.Embed(title="思い浮かべているのは", color=float_to_color(aki.progression/100))
             guess_embed.add_field(name=aki.guess_name, value=aki.guess_description)
             guess_embed.set_image(url=aki.guess_image)
@@ -192,15 +208,24 @@ async def play(client, message):
             await message.channel.send(embed=guess_embed, view=confirmation_view)
             await confirmation_view.wait()
             if confirmation_view.value == 0:
-                await message.channel.send("よぉし！また正解！！魔人は何でもお見通しだ！")
+                if miss_count == 0:
+                    correct_message = "よぉし！また正解！！魔人は何でもお見通しだ！"
+                elif miss_count == 1:
+                    correct_message = "よぉし！正解したぞ！！"
+                elif miss_count == 2:
+                    correct_message = "よかった！なんとか正解できた！"
+                else:
+                    correct_message = "ふぅ～、難しかったがようやく正解したようだ！"
+                await message.channel.send(correct_message)
                 return
             elif confirmation_view.value == 1:
                 aki.exclude()
+                miss_count += 1
             else:
                 await message.channel.send("3分間操作がなかったので終了するよ")
                 return
     except NoMoreQuestions:
-        await message.channel.send("魔人はそのキャラクターを知らないかも...")
+        await message.channel.send("う～ん、魔人はそのキャラクターを知らないかも...")
     except Exception as e:
         await message.channel.send(e)
         await message.channel.send("エラーが発生しました...やり直してね")
