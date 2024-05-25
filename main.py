@@ -7,7 +7,6 @@ import asyncio
 
 import tinitu
 import hangman
-import maketen
 import akinator
 import picasso
 
