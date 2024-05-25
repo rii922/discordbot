@@ -11,6 +11,6 @@ def inference(prompt):
 
 async def play(client, message):
     prompt = message.content[8:]
-    image = pipe(prompt).images[0]
+    image = inference(prompt)[0]
     image.save("picasso.png")
     await message.channel.send(file=discord.File("picasso.png"))
